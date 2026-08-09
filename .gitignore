@@ -1,0 +1,11 @@
+# Ігнорувати всі файли та директорії
+*
+
+# Не ігнорувати сам файл .gitignore
+!.gitignore
+
+# Файли, які потрібно відстежувати
+!freecad_langchain_agent.py
+!streamlit_agentcad.json
+!agentcad_environment_streamlit.yml
+!README.md

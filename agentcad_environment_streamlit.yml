@@ -1,0 +1,18 @@
+name: agentcad
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - langchain
+      - langchain-openai
+      - langchain-openrouter
+      - langgraph
+      - streamlit
+      - python-dotenv
+      - pydantic
+      - numpy
+      - numpy-stl
+      - plotly
+      - orjson
