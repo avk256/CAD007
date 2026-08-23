@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentcad-v2"
+version = "2.0.0"
+description = "LangGraph-based natural-language CAD/FEM agent for FreeCAD"
+requires-python = ">=3.11"
+dependencies = [
+  "langchain>=1.0",
+  "langchain-openai>=1.0",
+  "langchain-openrouter>=0.1",
+  "langgraph>=1.2",
+  "python-dotenv>=1.0",
+  "pydantic>=2.8",
+  "numpy>=2.0",
+  "numpy-stl>=3.1",
+  "plotly>=6.0",
+  "streamlit>=1.45",
+]
+
+[tool.setuptools.packages.find]
+include = ["agentcad*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

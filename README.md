@@ -1,1196 +1,430 @@
-# AgentCAD
+# AgentCAD v2
 
-**AgentCAD** — експериментальний агент для автоматичного створення 3D-моделей у **FreeCAD** за текстовим описом конструкції.
+AgentCAD v2 is a modular LangGraph-based prototype that converts a natural-language description of a mechanical part into a validated CAD/FEM task specification, generates a headless FreeCAD Python implementation, executes it through `FreeCADCmd`, and inspects the produced geometry and FEM artifacts.
 
-Користувач задає форму, розміри та конструктивні елементи деталі природною мовою. Агент за допомогою **LangChain** і LLM генерує Python-скрипт FreeCAD, перевіряє його, запускає через `FreeCADCmd`, аналізує результат виконання та, у разі помилки, автоматично намагається виправити код. Для роботи через браузер передбачено **Streamlit**-інтерфейс з журналом виконання, переглядом згенерованого коду та інтерактивною 3D-візуалізацією STL.
+The central architectural rule is that **Streamlit talks only to `AgentCADEngine`**. Planners, validators, LLM integrations, FreeCAD execution and result inspection are independent classes/modules hidden behind the engine API.
 
----
-
-## 1. Основні можливості
-
-Поточна версія AgentCAD підтримує:
-
-- введення текстового опису деталі українською або іншою мовою;
-- використання LLM через:
-  - OpenRouter;
-  - OpenAI;
-- генерацію повного Python-скрипта для FreeCAD;
-- структурований результат LLM через `Pydantic`;
-- базову статичну перевірку безпеки згенерованого коду;
-- перевірку синтаксису Python;
-- запуск скрипта через `FreeCADCmd` / `freecadcmd`;
-- перехоплення `stdout`, `stderr` та коду завершення FreeCAD;
-- автоматичне повторне генерування/виправлення скрипта після помилки;
-- збереження всіх спроб генерації та журналів;
-- експорт моделей у:
-  - `FCStd`;
-  - `STL`;
-  - `STEP/STP`;
-- Streamlit-інтерфейс;
-- інтерактивний перегляд STL через Plotly;
-- відображення:
-  - кількості трикутників STL;
-  - габаритів X × Y × Z;
-  - площі поверхні;
-  - розміру файла;
-- завантаження створених CAD-файлів через вебінтерфейс;
-- регулювання висоти 3D-перегляду;
-- підготовлене Conda-середовище з `LangGraph` для подальшого розвитку проєкту.
-
----
-
-## 2. Архітектура
-
-Поточна версія використовує простий агентний цикл:
+## Architecture
 
 ```text
-Текстовий опис конструкції
-          │
-          ▼
-      Streamlit
-          │
-          ▼
-       LangChain
-          │
-          ▼
-          LLM
-          │
-          ▼
-  Python-код для FreeCAD
-          │
-          ▼
-  Static validation
-          │
-          ▼
-   Python syntax check
-          │
-          ▼
-      FreeCADCmd
-          │
-     ┌────┴─────┐
-     │          │
-   успіх      помилка
-     │          │
-     │          ▼
-     │      stdout/stderr
-     │          │
-     │          ▼
-     │     повторний запит
-     │          до LLM
-     │          │
-     └──────────┘
-          │
-          ▼
- FCStd / STL / STEP
-          │
-          ▼
-  Streamlit + Plotly
+Streamlit / CLI
+      |
+      v
++--------------------------+
+|     AgentCADEngine       |
+|       LangGraph          |
++------------+-------------+
+             |
+             v
++----------------------------------------------------+
+|       UNIFIED PLANNING & VALIDATION LOOP          |
+|                                                    |
+| GeometryPlanner (LLM)                              |
+|       |                                            |
+| StructuralAnalysisPlanner (LLM / optional FEM)     |
+|       |                                            |
+| UnifiedConsistencyValidator (deterministic)        |
+|       |                                            |
+|   VALID? ---- no ---> ClarificationManager         |
+|       |                    |                       |
+|       |                  interrupt() <--- USER     |
+|       |                    |                       |
+|       |              both planners rerun           |
++-------+--------------------------------------------+
+        |
+        v
+UnifiedModelSpecification
+        |
+        v
+CodeGenerator (LLM)
+        |
+        v
+FreeCADExecutor (deterministic)
+        |
+        v
+STLInspector (deterministic)
+        |
+        +--- structural task ---> FEMResultInspector
+        |
+        v
+       END
 ```
 
-Головний цикл можна коротко описати як:
+If FEM inspection indicates a likely model-definition problem (for example rigid-body motion / a singular system), `FailureClassifier` can route the task back to the shared planning loop. Code/API failures are routed back to `CodeGenerator`.
+
+## Module types
+
+| Module | Nature | Responsibility |
+|---|---|---|
+| `GeometryPlanner` | LLM + structured output | Natural language -> `GeometrySpec`; detects ambiguities/conflicts and names semantic regions |
+| `StructuralAnalysisPlanner` | LLM + structured output | Natural language + geometry -> linear-static FEM specification |
+| `UnifiedConsistencyValidator` | deterministic | Units, ranges, completeness, cross-references, mesh/FEM compatibility |
+| `ClarificationManager` | deterministic | Converts validation issues into human questions |
+| `ParameterExplainer` | deterministic | Short explanations of engineering parameter influence |
+| `UnifiedModelSpecification` | data model | Frozen machine-readable contract before code generation |
+| `CodeGenerator` | LLM + structured output | Contract -> FreeCAD/FEM Python implementation; repair after implementation failures |
+| `CodeValidator` | deterministic | Syntax/AST guardrails for generated code |
+| `FreeCADExecutor` | deterministic | Executes `FreeCADCmd`, captures stdout/stderr and artifacts |
+| `STLInspector` | deterministic | Mesh validity, bounding box, area and dimensional verification |
+| `FEMResultInspector` | deterministic | Checks solver/result artifacts and known solver failure markers |
+| `FailureClassifier` | deterministic heuristic | Routes implementation failures vs model-specification failures |
+| `AgentCADEngine` | orchestrator | Public API and LangGraph lifecycle |
+
+## Project structure
 
 ```text
-generate → validate → execute → inspect → repair
+AgentCAD_v2/
+├── agentcad/
+│   ├── config/
+│   │   └── settings.py
+│   ├── engine/
+│   │   ├── agentcad_engine.py
+│   │   ├── graph_builder.py
+│   │   ├── result.py
+│   │   └── state.py
+│   ├── planners/
+│   │   ├── geometry_planner.py
+│   │   ├── structural_analysis_planner.py
+│   │   ├── parameter_explainer.py
+│   │   └── clarification_manager.py
+│   ├── validators/
+│   │   ├── unified_consistency_validator.py
+│   │   ├── geometry_validator.py
+│   │   ├── material_validator.py
+│   │   ├── boundary_condition_validator.py
+│   │   ├── load_validator.py
+│   │   ├── mesh_validator.py
+│   │   ├── fem_validator.py
+│   │   ├── code_validator.py
+│   │   └── units.py
+│   ├── generators/
+│   │   └── code_generator.py
+│   ├── executors/
+│   │   └── freecad_executor.py
+│   ├── inspectors/
+│   │   ├── stl_inspector.py
+│   │   ├── fem_result_inspector.py
+│   │   └── failure_classifier.py
+│   ├── llm/
+│   │   ├── model_factory.py
+│   │   ├── prompt_loader.py
+│   │   └── prompts/
+│   └── models/
+│       ├── common.py
+│       ├── geometry.py
+│       ├── material.py
+│       ├── boundary_conditions.py
+│       ├── loads.py
+│       ├── mesh.py
+│       ├── simulation.py
+│       ├── planning.py
+│       ├── validation.py
+│       ├── unified_specification.py
+│       └── artifacts.py
+├── app/
+│   └── streamlit_agentcad.py
+├── tests/
+├── cli.py
+├── pyproject.toml
+├── agentcad_environment_v2.yml
+└── .env.example
 ```
 
-На цьому етапі цикл реалізований звичайним Python-кодом. `LangGraph` уже входить до Conda-середовища та планується для наступної версії.
+## Unified planning loop
 
----
-
-## 3. Структура проєкту
-
-Рекомендована структура каталогу:
+For every initial request or human clarification, both planners run again:
 
 ```text
-AgentCAD/
-├── freecad_langchain_agent.py
-├── streamlit_agentcad_v3.py
-├── agentcad_environment_streamlit.yml
-├── README.md
-├── .env
-└── agentcad_runs/
+user request / clarification
+        |
+        v
+GeometryPlanner
+        |
+        v
+StructuralAnalysisPlanner
+        |
+        v
+UnifiedConsistencyValidator
+        |
+   +----+----+
+   |         |
+ VALID   clarification needed
+   |         |
+   |         v
+   |    ParameterExplainer
+   |         |
+   |    ClarificationManager
+   |         |
+   |      interrupt()
+   |         |
+   |       USER
+   |         |
+   +---------+----> GeometryPlanner
 ```
 
-### `freecad_langchain_agent.py`
+No FreeCAD code is generated until the planning contract is `VALID` or `VALID_WITH_WARNINGS`.
 
-Основний агент.
+### Geometry-only mode
 
-Виконує:
+Only `GeometrySpec` must validate. `StructuralAnalysisPlanner` returns a disabled structural specification.
 
-1. отримання текстового опису;
-2. підключення до LLM;
-3. формування LangChain prompt;
-4. отримання структурованого результату;
-5. збереження Python-коду;
-6. перевірку коду;
-7. запуск `FreeCADCmd`;
-8. аналіз помилок;
-9. повторну генерацію коду;
-10. збереження фінального результату.
+### Structural-analysis mode
 
-### `streamlit_agentcad_v3.py`
+The shared loop also requires a valid linear-static formulation:
 
-Вебінтерфейс AgentCAD.
+- homogeneous linear-isotropic material;
+- density;
+- Young modulus;
+- Poisson ratio;
+- boundary conditions;
+- load(s) or prescribed displacement;
+- model idealization (`beam_1d`, `shell_2d`, `solid_3d`);
+- element dimension/family/order;
+- global mesh size or explicit `AUTO` choice;
+- shell thickness for shell models;
+- beam section information for 1D models;
+- CalculiX solver.
 
-Містить:
+## Semantic geometry regions
 
-- поле введення запиту;
-- налаштування LLM;
-- вибір максимальної кількості спроб;
-- параметр timeout;
-- налаштування висоти 3D-перегляду;
-- live-вивід роботи агента;
-- вкладки:
-  - **3D STL**;
-  - **Результат**;
-  - **FreeCAD-код**;
-  - **Журнал**;
-  - **Файли**;
-- інтерактивний STL viewer на Plotly;
-- завантаження результатів.
-
-За бажанням файл можна перейменувати:
-
-```bash
-mv streamlit_agentcad_v3.py streamlit_agentcad.py
-```
-
-### `agentcad_environment_streamlit.yml`
-
-Conda-середовище для CLI-агента, Streamlit та майбутніх LangGraph-агентів.
-
----
-
-## 4. Вимоги
-
-### Операційна система
-
-Основний сценарій розробки орієнтований на Linux.
-
-### Необхідне ПЗ
-
-- Conda / Miniconda / Anaconda;
-- Python 3.11 у Conda-середовищі;
-- FreeCAD, встановлений у системі;
-- доступ до LLM API:
-  - OpenRouter або
-  - OpenAI.
-
-Важливо: FreeCAD **не імпортується у Python Conda-середовища**.
-
-AgentCAD запускає зовнішню програму:
+FEM conditions should not reference unstable FreeCAD identifiers such as `Face7`. `GeometryPlanner` creates stable semantic names, e.g.:
 
 ```text
-FreeCADCmd
+left_end_face
+right_end_face
+crankpin_surface
+mounting_holes
+load_surface
 ```
 
-або:
+Boundary conditions, loads and local mesh refinements reference these names. The deterministic validator verifies that referenced names exist in `GeometrySpec`.
 
-```text
-freecadcmd
+## Engineering parameters and provenance
+
+Numeric parameters use `QuantityParameter` and record:
+
+- value;
+- unit;
+- source (`user_explicit`, `inferred`, `default`, `undefined`);
+- whether the parameter is required;
+- optional explanation/notes.
+
+The validator uses canonical engineering dimensions for unit checks. Current supported examples include:
+
+- length: `mm`, `cm`, `m`;
+- force: `N`, `kN`;
+- stress/modulus/pressure: `Pa`, `kPa`, `MPa`, `GPa`, `N/mm²`;
+- density: `kg/m³`, `g/cm³`;
+- acceleration: `m/s²`, `mm/s²`;
+- moment: `N·mm`, `N·m`, `kN·m`.
+
+AgentCAD does not silently reinterpret suspicious units. When user confirmation is required, validation produces a clarification question.
+
+## LangGraph / human-in-the-loop
+
+The graph is compiled with a checkpointer. The prototype uses `InMemorySaver`; the public API uses a stable `thread_id` so a run can pause on a clarification and resume with the same state.
+
+The `ask_user` graph node calls LangGraph `interrupt()`. `AgentCADEngine.resume(thread_id, answer)` resumes it using `Command(resume=...)`.
+
+For a production server, replace `InMemorySaver` with a durable checkpointer (SQLite for local workflows, PostgreSQL for production).
+
+## Public engine API
+
+Streamlit and CLI use only the engine:
+
+```python
+from agentcad.engine import AgentCADEngine
+
+engine = AgentCADEngine()
+
+result = engine.start(
+    "Create an 80x40x3 mm plate ...",
+    perform_structural_analysis=True,
+)
+
+if result.status.value == "needs_input":
+    result = engine.resume(result.thread_id, {
+        "question-id": "210 GPa"
+    })
+
+state = engine.get_state(result.thread_id)
+artifacts = engine.get_artifacts(result.thread_id)
 ```
 
-Тому FreeCAD використовує власне Python-середовище.
+Important public methods:
 
----
+- `start(...)`
+- `resume(thread_id, answer)`
+- `get_state(thread_id)`
+- `get_result(thread_id)`
+- `get_artifacts(thread_id)`
+- `stream_updates(...)` (low-level optional UI integration)
 
-## 5. Перевірка FreeCAD
+## Install
 
-Перевірте, чи доступний консольний FreeCAD:
+### 1. FreeCAD
+
+Install FreeCAD system-wide and verify the headless command:
 
 ```bash
 which FreeCADCmd
-```
-
-або:
-
-```bash
+# or
 which freecadcmd
 ```
 
-Перевірка запуску:
+### 2. Conda environment
 
 ```bash
-FreeCADCmd --version
+conda env create -f agentcad_environment_v2.yml
+conda activate agentcad-v2
 ```
 
-або:
+Optionally install the project in editable mode:
 
 ```bash
-freecadcmd --version
+pip install -e .
 ```
 
-Якщо команда розташована нестандартно, її можна явно задати через `.env`:
+### 3. Environment file
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set the LLM API key and FreeCAD path.
+
+Example OpenRouter configuration:
 
 ```dotenv
-FREECAD_CMD=/повний/шлях/до/freecadcmd
-```
-
----
-
-## 6. Створення Conda-середовища
-
-Перейдіть у каталог проєкту:
-
-```bash
-cd /path/to/AgentCAD
-```
-
-Створіть середовище:
-
-```bash
-conda env create -f agentcad_environment_streamlit.yml
-```
-
-Активуйте його:
-
-```bash
-conda activate agentcad
-```
-
-Перевірте:
-
-```bash
-python --version
-```
-
-Очікується Python 3.11.
-
-Перевірка Streamlit:
-
-```bash
-streamlit --version
-```
-
-Перевірка основних Python-пакетів:
-
-```bash
-python -c "import langchain, langgraph, streamlit, plotly, stl; print('OK')"
-```
-
----
-
-## 7. Оновлення існуючого середовища
-
-Якщо `agentcad` уже створено:
-
-```bash
-conda activate agentcad
-```
-
-Потім:
-
-```bash
-conda env update \
-    -n agentcad \
-    -f agentcad_environment_streamlit.yml \
-    --prune
-```
-
----
-
-## 8. Python-залежності
-
-Файл середовища містить:
-
-```yaml
-name: agentcad
-channels:
-  - conda-forge
-dependencies:
-  - python=3.11
-  - pip
-  - pip:
-      - langchain
-      - langchain-openai
-      - langchain-openrouter
-      - langgraph
-      - streamlit
-      - python-dotenv
-      - pydantic
-      - numpy
-      - numpy-stl
-      - plotly
-      - orjson
-```
-
----
-
-## 9. Налаштування `.env`
-
-Створіть файл:
-
-```text
-.env
-```
-
-у кореневій директорії проєкту.
-
-### Варіант OpenRouter
-
-```dotenv
-OPENROUTER_API_KEY=sk-or-v1-ВАШ_КЛЮЧ
-
 LLM_PROVIDER=openrouter
 LLM_MODEL=openai/gpt-5.5
-```
-
-За необхідності:
-
-```dotenv
+OPENROUTER_API_KEY=sk-or-v1-...
 FREECAD_CMD=/usr/bin/freecadcmd
 ```
 
-### Варіант OpenAI
+## Run Streamlit
 
-```dotenv
-OPENAI_API_KEY=ВАШ_КЛЮЧ
-
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-5.5
-```
-
-### Важливо
-
-Не додавайте `.env` до Git.
-
-Рекомендований `.gitignore`:
-
-```gitignore
-.env
-agentcad_runs/
-__pycache__/
-*.pyc
-```
-
----
-
-## 10. Запуск CLI-агента
-
-Найпростіший запуск:
+From the project root:
 
 ```bash
-conda activate agentcad
-python freecad_langchain_agent.py
+conda activate agentcad-v2
+streamlit run app/streamlit_agentcad.py
 ```
 
-Після цього буде запропоновано ввести опис:
+The UI can:
 
-```text
-Опишіть деталь, її форму та розміри.
->
-```
+1. start a geometry-only or geometry+FEM task;
+2. display planning-validation questions;
+3. resume the same LangGraph thread after user clarification;
+4. display validation state and `UnifiedModelSpecification`;
+5. display generated code and FreeCAD logs;
+6. visualize generated STL;
+7. expose generated artifacts for download.
 
-Наприклад:
-
-```text
-Створи прямокутну пластину розміром 80×40×3 мм.
-Зроби чотири наскрізні отвори діаметром 4 мм.
-Центри отворів розташуй на відстані 7 мм від країв.
-```
-
----
-
-## 11. Передавання запиту через командний рядок
+## CLI
 
 ```bash
-python freecad_langchain_agent.py \
-  --description "Створи циліндр діаметром 40 мм, висотою 20 мм, з центральним наскрізним отвором діаметром 8 мм"
+python cli.py "Create an 80x40x3 mm plate with four holes"
 ```
 
-Із явним вибором провайдера та моделі:
+With structural analysis:
 
 ```bash
-python freecad_langchain_agent.py \
-  --provider openrouter \
-  --model openai/gpt-5.5 \
-  --description "Створи пластину 100×50×4 мм з чотирма отворами діаметром 5 мм"
+python cli.py "Create ... Material E=210 GPa ..." --structural
 ```
 
----
+The CLI asks human-in-the-loop questions in the terminal until the specification becomes valid or the planning iteration limit is reached.
 
-## 12. Основні аргументи CLI
+## Testing
 
-```text
---description
-```
-
-Текстовий опис конструкції.
-
-```text
---provider
-```
-
-Провайдер:
-
-```text
-openrouter
-openai
-```
-
-```text
---model
-```
-
-Назва LLM.
-
-```text
---output-dir
-```
-
-Каталог результатів.
-
-```text
---max-attempts
-```
-
-Максимальна кількість генерацій/виправлень.
-
-За замовчуванням:
-
-```text
-3
-```
-
-```text
---temperature
-```
-
-Температура LLM.
-
-За замовчуванням:
-
-```text
-0.0
-```
-
-```text
---timeout
-```
-
-Максимальний час виконання FreeCAD-скрипта.
-
-За замовчуванням:
-
-```text
-180 секунд
-```
-
-```text
---freecad-cmd
-```
-
-Явний шлях до `FreeCADCmd`.
-
-```text
---unsafe
-```
-
-Вимикає базову статичну перевірку згенерованого коду.
-
-Використовувати лише у контрольованому середовищі.
-
----
-
-## 13. Запуск Streamlit
-
-Активуйте середовище:
+Deterministic modules have unit tests independent of LLM and FreeCAD:
 
 ```bash
-conda activate agentcad
+pytest -q
 ```
 
-Запустіть останню версію:
+The current test set covers:
 
-```bash
-streamlit run streamlit_agentcad_v3.py
-```
+- material parameter validation;
+- Poisson-ratio range;
+- mesh family/dimension compatibility;
+- valid geometry-only specification;
+- valid 3D structural specification;
+- generated-code AST guardrails.
 
-Якщо файл перейменовано:
+## Execution/inspection loop
 
-```bash
-streamlit run streamlit_agentcad.py
-```
-
-Streamlit зазвичай відкриє:
+After the specification is frozen:
 
 ```text
-http://localhost:8501
-```
-
----
-
-## 14. Робота зі Streamlit
-
-### 14.1. Введення конструкції
-
-У полі запиту можна написати, наприклад:
-
-```text
-Створи прямокутну пластину 80×40×3 мм.
-Зроби чотири наскрізні отвори діаметром 4 мм.
-Центри отворів розташуй на відстані 7 мм від найближчих країв.
-Заокругли зовнішні кути радіусом 3 мм.
-```
-
-Streamlit автоматично додає технічну вимогу:
-
-- створити STL;
-- зберегти FCStd;
-- за можливості створити STEP;
-- експортувати саме фінальну геометрію.
-
-Це необхідно для 3D-перегляду результату.
-
-### 14.2. Бічна панель
-
-Доступні параметри:
-
-- LLM provider;
-- модель;
-- максимальна кількість спроб;
-- timeout FreeCAD;
-- висота 3D-перегляду;
-- шлях до скрипта агента;
-- шлях до `FreeCADCmd`;
-- коренева директорія запусків.
-
-### 14.3. Висота STL viewer
-
-3D-вікно має регульовану висоту.
-
-Типове значення:
-
-```text
-480 px
-```
-
-Для екранів 1080p рекомендовано:
-
-```text
-420–500 px
-```
-
-Масштабування колесом миші вимкнено, щоб Plotly не блокував вертикальну прокрутку сторінки.
-
----
-
-## 15. Вкладки Streamlit
-
-### `3D STL`
-
-Показує інтерактивну STL-модель.
-
-Можна:
-
-- обертати модель;
-- змінювати ракурс;
-- масштабувати засобами Plotly;
-- вибирати STL, якщо їх декілька.
-
-Також відображаються:
-
-```text
-кількість трикутників
-X × Y × Z
-площа поверхні
-розмір STL
-```
-
-Під моделлю доступний компактний список створених файлів.
-
-### `Результат`
-
-Містить:
-
-- вихідний запит;
-- короткий опис моделі, сформований LLM;
-- кількість створених STL;
-- кількість STEP/STP;
-- кількість FCStd.
-
-### `FreeCAD-код`
-
-Показує фінальний успішний Python-скрипт.
-
-Основний файл:
-
-```text
-generated_freecad_model.py
-```
-
-### `Журнал`
-
-Показує:
-
-- live-вивід AgentCAD;
-- `stdout`;
-- `stderr`;
-- журнали окремих запусків FreeCAD.
-
-### `Файли`
-
-Містить усі результати поточного запуску та дозволяє завантажити їх.
-
----
-
-## 16. Каталог результатів
-
-Streamlit створює для кожного запиту окремий каталог:
-
-```text
-agentcad_runs/
-├── run_20260809_150001_123456/
-├── run_20260809_150233_654321/
-└── ...
-```
-
-Приклад вмісту:
-
-```text
-run_20260809_150001_123456/
-├── generated_attempt_1.py
-├── freecad_attempt_1.log
-├── generated_attempt_2.py
-├── freecad_attempt_2.log
-├── generated_freecad_model.py
-├── model.FCStd
-├── model.step
-└── model.stl
-```
-
----
-
-## 17. Механізм генерації FreeCAD-коду
-
-LangChain формує prompt, що містить:
-
-```text
-MODE
-USER DESCRIPTION
-OUTPUT DIRECTORY
-PREVIOUS SCRIPT
-FREECAD EXECUTION DIAGNOSTICS
-```
-
-На першій спробі:
-
-```text
-MODE = INITIAL GENERATION
-```
-
-На наступних:
-
-```text
-MODE = REPAIR AFTER FAILED EXECUTION
-```
-
-Таким чином LLM отримує не лише початкове завдання, а й:
-
-- попередню версію коду;
-- traceback;
-- stdout/stderr;
-- код завершення FreeCAD.
-
----
-
-## 18. Structured Output
-
-LLM повертає дані через Pydantic-модель:
-
-```python
-class GeneratedFreeCADScript(BaseModel):
-    summary: str
-    script_code: str
-```
-
-Отже AgentCAD отримує окремо:
-
-```python
-generated.summary
-generated.script_code
-```
-
-Це надійніше, ніж витягувати Python-код із довільного текстового повідомлення.
-
----
-
-## 19. Правила генерації FreeCAD
-
-System prompt рекомендує використовувати:
-
-```python
-import FreeCAD as App
-import Part
-```
-
-та уникати GUI-залежностей:
-
-```python
-FreeCADGui
-```
-
-Оскільки код виконується через headless FreeCAD.
-
-Згенерований скрипт повинен:
-
-1. створити документ;
-2. побудувати геометрію;
-3. виконати `doc.recompute()`;
-4. зберегти документ;
-5. експортувати необхідні формати;
-6. після успіху вивести:
-
-```text
-AGENTCAD_SUCCESS
-```
-
----
-
-## 20. Як визначається успішне виконання
-
-AgentCAD перевіряє одночасно:
-
-```text
-FreeCAD return code == 0
-```
-
-і наявність:
-
-```text
-AGENTCAD_SUCCESS
-```
-
-і відсутність:
-
-```text
-Traceback (most recent call last)
-```
-
-Лише при виконанні всіх умов спроба вважається успішною.
-
----
-
-## 21. Автоматичне виправлення помилок
-
-Приклад:
-
-LLM згенерувала:
-
-```python
-Part.makeBoxx(80, 40, 3)
-```
-
-FreeCAD повернув:
-
-```text
-AttributeError:
-module 'Part' has no attribute 'makeBoxx'
-```
-
-AgentCAD передає LLM:
-
-```text
-PREVIOUS SCRIPT:
-...
-
-FREECAD EXECUTION DIAGNOSTICS:
-AttributeError...
-```
-
-LLM генерує нову версію:
-
-```python
-Part.makeBox(80, 40, 3)
-```
-
-Після цього FreeCAD запускається повторно.
-
----
-
-## 22. Статична перевірка безпеки
-
-Перед виконанням AgentCAD аналізує Python AST.
-
-Блокуються деякі потенційно небезпечні модулі, наприклад:
-
-```python
-subprocess
-socket
-requests
-httpx
-urllib
-ftplib
-paramiko
-ctypes
-multiprocessing
-```
-
-Також блокуються окремі виклики:
-
-```python
-eval()
-exec()
-compile()
-__import__()
-```
-
-та системні команди типу:
-
-```python
-os.system()
-os.popen()
-shutil.rmtree()
-```
-
----
-
-## 23. Важливе обмеження безпеки
-
-Поточна перевірка — це **не повноцінна sandbox-ізоляція**.
-
-LLM генерує код, який реально виконується через FreeCAD на комп'ютері.
-
-Тому поточна версія призначена насамперед для:
-
-- локальної роботи;
-- експериментів;
-- контрольованого середовища;
-- одного довіреного користувача.
-
-Для публічного вебсервісу рекомендовано виконувати `FreeCADCmd` у контейнері, наприклад:
-
-```text
-Streamlit
-    │
-    ▼
-Agent service
-    │
-    ▼
-Docker container
-    │
-    ├── FreeCADCmd
-    ├── isolated workdir
-    ├── CPU limit
-    ├── RAM limit
-    └── network disabled
-```
-
----
-
-## 24. Типові проблеми
-
-### FreeCADCmd не знайдено
-
-Помилка:
-
-```text
-FreeCAD command-line executable was not found
-```
-
-Перевірте:
-
-```bash
-which freecadcmd
-```
-
-та задайте:
-
-```dotenv
-FREECAD_CMD=/usr/bin/freecadcmd
-```
-
----
-
-### API key не знайдено
-
-Для OpenRouter:
-
-```text
-OPENROUTER_API_KEY is not set
-```
-
-Додайте до `.env`:
-
-```dotenv
-OPENROUTER_API_KEY=...
-```
-
-Для OpenAI:
-
-```dotenv
-OPENAI_API_KEY=...
-```
-
----
-
-### STL не відображається
-
-Перевірте вкладку:
-
-```text
-Журнал
-```
-
-та переконайтеся, що FreeCAD успішно створив `.stl`.
-
-Streamlit автоматично додає до запиту вимогу експорту STL, але генерація може завершитися раніше через помилку FreeCAD.
-
----
-
-### Сторінка погано прокручується біля 3D-моделі
-
-У поточній версії:
-
-```python
-scrollZoom=False
-```
-
-Колесо миші використовується для прокрутки сторінки.
-
-Висоту 3D-вікна можна зменшити у бічній панелі.
-
----
-
-### Генерація займає багато часу
-
-Час складається з:
-
-```text
-LLM generation
-+
-FreeCAD execution
-+
-можливі повторні LLM generation
-+
-можливі повторні FreeCAD execution
-```
-
-Зменшити час можна через:
-
-- швидшу LLM;
-- `max_attempts=1–2`;
-- спрощення конструкції;
-- зменшення складності boolean-операцій.
-
----
-
-## 25. Поточні обмеження
-
-Поточний AgentCAD:
-
-- не перевіряє геометричну відповідність моделі початковому тексту;
-- не аналізує STL через computer vision;
-- не має окремого geometry planner;
-- не має довготривалої пам'яті;
-- не використовує LangGraph для керування станом;
-- не має human-in-the-loop підтвердження перед запуском коду;
-- не виконує автоматичну перевірку технологічності 3D-друку;
-- не виконує FEM-аналіз;
-- не працює у контейнерній sandbox за замовчуванням.
-
----
-
-## 26. Наступний етап — LangGraph
-
-Поточний Python-цикл:
-
-```text
-generate
-   ↓
-validate
-   ↓
-execute
-   ↓
-error?
- ┌─┴─┐
-no  yes
-│    │
-END  repair
-      │
-      └──→ validate
-```
-
-доцільно перенести у LangGraph.
-
-Можлива архітектура:
-
-```text
-START
-  │
-  ▼
-AnalyzeRequest
-  │
-  ▼
-GeometryPlanner
-  │
-  ▼
-GenerateFreeCADCode
-  │
-  ▼
-ValidateCode
-  │
-  ▼
-RunFreeCAD
-  │
-  ├──── success ────► InspectGeometry
-  │                       │
-  │                       ▼
-  │                    Export
-  │                       │
-  │                       ▼
-  │                      END
-  │
-  └──── error ──────► AnalyzeError
-                          │
-                          ▼
-                      RepairCode
-                          │
-                          └────► ValidateCode
-```
-
----
-
-## 27. Можливий стан LangGraph
-
-```python
-class AgentCADState(TypedDict):
-    description: str
-
-    geometry_plan: str
-    generated_code: str
-
-    attempt: int
-
-    freecad_stdout: str
-    freecad_stderr: str
-    return_code: int
-
-    success: bool
-
-    fcstd_file: str | None
-    step_file: str | None
-    stl_file: str | None
-```
-
----
-
-## 28. Перспективні агенти
-
-У складнішій версії AgentCAD можна виділити:
-
-```text
-GeometryPlanner
-       ↓
-DimensionChecker
-       ↓
-FreeCADCodeGenerator
-       ↓
+UnifiedModelSpecification
+        |
+        v
+CodeGenerator
+        |
+        v
 CodeValidator
-       ↓
+        |
+        v
 FreeCADExecutor
-       ↓
-GeometryInspector
-       ↓
-ManufacturabilityChecker
-       ↓
-ExportAgent
+        |
+   +----+----+
+   |         |
+ error    success
+   |         |
+   +-> repair|
+             v
+        STLInspector
+             |
+       +-----+-----+
+       |           |
+ geometry-only   structural
+       |           |
+      END     FEMResultInspector
+                   |
+                 END / repair / re-plan
 ```
 
-Окремий `GeometryInspector` може перевіряти:
+`CodeGenerator` is allowed to repair implementation failures but is not allowed to silently change a validated engineering specification.
 
-- габарити STL;
-- кількість тіл;
-- замкненість mesh;
-- наявність отворів;
-- мінімальну товщину;
-- відповідність заданим розмірам.
+## FEM result contract
 
----
+For structural runs, the generated script is instructed to produce `agentcad_fem_summary.json` in addition to solver files. A minimal form is:
 
-## 29. Подальший розвиток
-
-Можливі напрями:
-
-1. перехід на LangGraph;
-2. окремий geometry planner;
-3. збереження стану агента;
-4. історія діалогів;
-5. редагування вже створеної моделі природною мовою;
-6. завантаження існуючого FCStd;
-7. автоматична перевірка STL;
-8. рендеринг з декількох ракурсів;
-9. порівняння текстового завдання з геометрією;
-10. Docker sandbox;
-11. параметричні моделі;
-12. бібліотека шаблонів CAD-операцій;
-13. підтримка Assembly;
-14. підготовка моделей до багатокольорового 3D-друку;
-15. автоматичний аналіз технологічності;
-16. інтеграція FEM;
-17. генерація креслень;
-18. експорт технічного звіту.
-
----
-
-## 30. Швидкий старт
-
-```bash
-# 1. Перейти у каталог
-cd /path/to/AgentCAD
-
-# 2. Створити середовище
-conda env create -f agentcad_environment_streamlit.yml
-
-# 3. Активувати
-conda activate agentcad
-
-# 4. Створити .env
-nano .env
-
-# 5. Перевірити FreeCAD
-which freecadcmd
-
-# 6. Запустити Streamlit
-streamlit run streamlit_agentcad_v3.py
+```json
+{
+  "success": true,
+  "solver": "CalculiX",
+  "analysis_type": "linear_static",
+  "notes": []
+}
 ```
 
-Після цього відкрити:
+`FEMResultInspector` also looks for non-empty `.frd` results and common failure markers such as `singular`, `zero pivot`, `rigid body`, `no convergence`.
 
-```text
-http://localhost:8501
-```
+This inspector is intentionally conservative and should be extended later with direct extraction of min/max displacement, strain and stress fields from FreeCAD/CalculiX results.
 
-і ввести, наприклад:
+## Current limitations
 
-```text
-Створи круглий диск діаметром 60 мм і товщиною 4 мм.
-У центрі зроби наскрізний отвір діаметром 8 мм.
-Додай чотири отвори діаметром 4 мм на колі діаметром 40 мм.
-```
+AgentCAD v2 is an experimental prototype. In particular:
 
----
+- LLM-produced FreeCAD FEM code may require adaptation to the exact installed FreeCAD version/API;
+- AST checks are guardrails, not a true execution sandbox;
+- `InMemorySaver` loses state when the engine process is restarted;
+- STL bounding-box verification cannot validate every semantic feature (for example exact hole count) yet;
+- FEM result inspection is artifact/log based and does not yet numerically inspect stress/strain fields;
+- the initial structural scope is deliberately limited to homogeneous linear-isotropic linear-static analysis.
 
-## 31. Статус проєкту
+Before exposing AgentCAD as a public service, execute `FreeCADCmd` in a container with filesystem, CPU/RAM and network restrictions.
 
-AgentCAD наразі є **експериментальним прототипом**.
+## Recommended next development steps
 
-Поточна версія демонструє працездатну інтеграцію:
-
-```text
-Natural Language
-      ↓
-LangChain
-      ↓
-LLM
-      ↓
-FreeCAD Python
-      ↓
-FreeCADCmd
-      ↓
-STL / STEP / FCStd
-      ↓
-Streamlit + Plotly
-```
-
-Головна мета поточного етапу — перевірити можливість автоматичного переходу від природномовного опису конструкції до реально виконуваного CAD-скрипта з автоматичним аналізом і виправленням помилок.
+1. persistent SQLite checkpointer for local Streamlit deployments;
+2. richer geometry semantic verification (holes, symmetry, region identity);
+3. a deterministic FreeCAD topology mapping layer for semantic regions;
+4. FEM mesh quality inspector;
+5. direct CalculiX/FreeCAD result parser for displacement, strain and stress extrema;
+6. convergence study / adaptive local refinement;
+7. thermal and thermomechanical analysis specifications;
+8. containerized FreeCAD execution;
+9. integration tests against the target FreeCAD release.
