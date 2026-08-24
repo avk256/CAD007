@@ -1,37 +1,38 @@
 from __future__ import annotations
 
-from enum import Enum
-
-from agentcad.models.artifacts import ExecutionResult, FEMInspectionReport, STLInspectionReport
-
-
-class FailureClass(str, Enum):
-    CODE_IMPLEMENTATION = "code_implementation"
-    GEOMETRY_IMPLEMENTATION = "geometry_implementation"
-    MODEL_SPECIFICATION = "model_specification"
-    UNKNOWN = "unknown"
+from typing import Any
 
 
 class FailureClassifier:
-    """Deterministic routing heuristic; can later be augmented by an LLM classifier."""
+    """Classify failures so the UI and repair loop expose the right layer."""
 
-    _MODEL_MARKERS = (
-        "singular", "zero pivot", "rigid body", "unconstrained", "boundary condition",
-    )
+    def classify(self, error: Exception | str, stage: str | None = None) -> dict[str, Any]:
+        message = str(error)
+        text = message.lower()
+        stage_text = (stage or "").lower()
 
-    def classify(
-        self,
-        execution: ExecutionResult | None = None,
-        stl: STLInspectionReport | None = None,
-        fem: FEMInspectionReport | None = None,
-    ) -> FailureClass:
-        if execution is not None and not execution.success:
-            return FailureClass.CODE_IMPLEMENTATION
-        if stl is not None and not stl.passed:
-            return FailureClass.GEOMETRY_IMPLEMENTATION
-        if fem is not None and not fem.passed:
-            text = " ".join(fem.errors + fem.warnings).lower()
-            if any(marker in text for marker in self._MODEL_MARKERS):
-                return FailureClass.MODEL_SPECIFICATION
-            return FailureClass.CODE_IMPLEMENTATION
-        return FailureClass.UNKNOWN
+        if (
+            "validation error" in text
+            or "model_type" in text
+            or "structured output" in text
+            or "pydantic" in text
+            or "planner" in stage_text
+        ):
+            category = "planning_output_failure"
+        elif any(k in text for k in ("feature", "cadquery", "boolean", "fillet", "chamfer", "selector", "geometry")):
+            category = "feature_plan_failure"
+        elif any(k in text for k in ("gmsh", "mesh", "tetra")):
+            category = "mesh_failure"
+        elif any(k in text for k in ("singular", "zero pivot", "rigid body", "constraint", "boundary condition")):
+            category = "model_definition_failure"
+        elif any(k in text for k in ("calculix", "ccx", "solver", "convergence")):
+            category = "solver_failure"
+        else:
+            category = "infrastructure_failure"
+
+        return {
+            "category": category,
+            "stage": stage,
+            "message": message,
+            "exception_type": type(error).__name__ if isinstance(error, Exception) else None,
+        }

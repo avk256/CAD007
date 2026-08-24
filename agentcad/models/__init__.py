@@ -1,11 +1,16 @@
-from .common import *
-from .geometry import *
-from .material import *
-from .boundary_conditions import *
-from .loads import *
-from .mesh import *
-from .simulation import *
-from .planning import *
-from .validation import *
-from .unified_specification import *
-from .artifacts import *
+from .feature_plan import GeometryFeaturePlan, FeatureStep, FeatureOperation, SemanticRegionRule
+from .geometry import GeometrySpec, GeometryFeature, SemanticRegion, RegionKind
+from .unified_specification import UnifiedEngineeringModel, UnifiedModelSpecification
+
+__all__ = [
+    "GeometryFeaturePlan",
+    "FeatureStep",
+    "FeatureOperation",
+    "SemanticRegionRule",
+    "GeometrySpec",
+    "GeometryFeature",
+    "SemanticRegion",
+    "RegionKind",
+    "UnifiedEngineeringModel",
+    "UnifiedModelSpecification",
+]

@@ -5,10 +5,10 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from .boundary_conditions import BoundaryConditionSpec
+from .common import PlannerIssue
 from .loads import LoadSpec
 from .material import MaterialSpec
 from .mesh import MeshSpec
-from .common import PlannerIssue
 
 
 class AnalysisType(str, Enum):

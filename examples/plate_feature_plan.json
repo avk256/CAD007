@@ -1,0 +1,45 @@
+{
+  "version": "3.0",
+  "units": "mm",
+  "root_feature": "plate_with_holes",
+  "steps": [
+    {
+      "id": "plate",
+      "operation": "box",
+      "description": "Rectangular plate",
+      "parameters": {"x": 80.0, "y": 40.0, "z": 3.0, "centered": [true, true, false]}
+    },
+    {
+      "id": "plate_with_holes",
+      "operation": "hole",
+      "description": "Four through holes",
+      "target": "plate",
+      "parameters": {
+        "diameter": 5.0,
+        "face_selector": ">Z",
+        "positions": [[-30.0, -10.0], [-30.0, 10.0], [30.0, -10.0], [30.0, 10.0]],
+        "through": true
+      }
+    }
+  ],
+  "semantic_regions": [
+    {
+      "name": "top_surface",
+      "kind": "face",
+      "description": "Top planar surface excluding holes",
+      "selector": {"selector_type": "cadquery", "expression": ">Z", "expected_count": 1}
+    },
+    {
+      "name": "bottom_surface",
+      "kind": "face",
+      "description": "Bottom planar surface",
+      "selector": {"selector_type": "cadquery", "expression": "<Z", "expected_count": 1}
+    },
+    {
+      "name": "hole_surfaces",
+      "kind": "surface_set",
+      "description": "Cylindrical hole walls",
+      "selector": {"selector_type": "cadquery", "expression": "%Cylinder", "expected_count": 4}
+    }
+  ]
+}

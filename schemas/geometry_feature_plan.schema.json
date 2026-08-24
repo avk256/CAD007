@@ -1,0 +1,260 @@
+{
+  "$defs": {
+    "FeatureOperation": {
+      "enum": [
+        "box",
+        "cylinder",
+        "cone",
+        "sphere",
+        "extrude",
+        "revolve",
+        "hole",
+        "cut",
+        "fuse",
+        "intersect",
+        "fillet",
+        "chamfer",
+        "translate",
+        "rotate",
+        "mirror",
+        "linear_pattern",
+        "circular_pattern"
+      ],
+      "title": "FeatureOperation",
+      "type": "string"
+    },
+    "FeatureStep": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/FeatureOperation"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Primary upstream feature id.",
+          "title": "Target"
+        },
+        "inputs": {
+          "description": "Input feature ids for booleans/compound operations.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "operation"
+      ],
+      "title": "FeatureStep",
+      "type": "object"
+    },
+    "RegionKind": {
+      "enum": [
+        "solid",
+        "face",
+        "edge",
+        "vertex",
+        "surface_set",
+        "edge_set"
+      ],
+      "title": "RegionKind",
+      "type": "string"
+    },
+    "RegionSelector": {
+      "description": "Deterministic rule used to resolve a semantic region on the final B-Rep.",
+      "properties": {
+        "selector_type": {
+          "$ref": "#/$defs/RegionSelectorType",
+          "default": "cadquery"
+        },
+        "expression": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CadQuery selector such as >Z, <X, %Cylinder, |Z, or a compound selector.",
+          "title": "Expression"
+        },
+        "axis": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "X, Y or Z for extreme selectors.",
+          "title": "Axis"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "min or max for extreme selectors.",
+          "title": "Side"
+        },
+        "surface_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "PLANE, CYLINDER, CONE, SPHERE, TORUS.",
+          "title": "Surface Type"
+        },
+        "expected_count": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Count"
+        },
+        "tolerance": {
+          "default": 1e-06,
+          "exclusiveMinimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        }
+      },
+      "title": "RegionSelector",
+      "type": "object"
+    },
+    "RegionSelectorType": {
+      "enum": [
+        "cadquery",
+        "extreme",
+        "surface_type",
+        "source_feature"
+      ],
+      "title": "RegionSelectorType",
+      "type": "string"
+    },
+    "SemanticRegionRule": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/RegionKind"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "selector": {
+          "$ref": "#/$defs/RegionSelector"
+        },
+        "source_feature": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Feature"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "selector"
+      ],
+      "title": "SemanticRegionRule",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "version": {
+      "default": "3.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "units": {
+      "default": "mm",
+      "title": "Units",
+      "type": "string"
+    },
+    "root_feature": {
+      "title": "Root Feature",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/FeatureStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "semantic_regions": {
+      "items": {
+        "$ref": "#/$defs/SemanticRegionRule"
+      },
+      "title": "Semantic Regions",
+      "type": "array"
+    },
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "root_feature",
+    "steps"
+  ],
+  "title": "GeometryFeaturePlan",
+  "type": "object"
+}

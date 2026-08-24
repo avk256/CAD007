@@ -14,13 +14,7 @@ class MaterialModel(str, Enum):
 class MaterialSpec(BaseModel):
     name: str = "unspecified material"
     model: MaterialModel = MaterialModel.LINEAR_ISOTROPIC
-    density: QuantityParameter = Field(
-        default_factory=lambda: QuantityParameter(name="density", required=True)
-    )
-    young_modulus: QuantityParameter = Field(
-        default_factory=lambda: QuantityParameter(name="young_modulus", required=True)
-    )
-    poisson_ratio: QuantityParameter = Field(
-        default_factory=lambda: QuantityParameter(name="poisson_ratio", unit="1", required=True)
-    )
+    density: QuantityParameter = Field(default_factory=lambda: QuantityParameter(name="density", required=True))
+    young_modulus: QuantityParameter = Field(default_factory=lambda: QuantityParameter(name="young_modulus", required=True))
+    poisson_ratio: QuantityParameter = Field(default_factory=lambda: QuantityParameter(name="poisson_ratio", unit="1", required=True))
     unresolved_issues: list[PlannerIssue] = Field(default_factory=list)

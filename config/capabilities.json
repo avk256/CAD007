@@ -1,0 +1,21 @@
+{
+  "version": "3.0-alpha.1",
+  "geometry_backend": "cadquery",
+  "geometry_operations": [
+    "box", "cylinder", "cone", "sphere", "extrude", "revolve", "hole",
+    "cut", "fuse", "intersect", "fillet", "chamfer", "translate", "rotate",
+    "mirror", "linear_pattern", "circular_pattern"
+  ],
+  "exports": ["STEP", "STL", "GLB"],
+  "fem": {
+    "enabled": true,
+    "analysis_types": ["linear_static"],
+    "idealizations": ["solid_3d"],
+    "element_families": ["tetrahedron"],
+    "materials": ["linear_homogeneous_isotropic_elastic"],
+    "boundary_conditions": ["fixed", "prescribed_translation"],
+    "loads": ["force", "pressure", "gravity"],
+    "mesher": "gmsh",
+    "solver": "calculix"
+  }
+}

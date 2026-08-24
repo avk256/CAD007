@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 
-_PROMPT_DIR = Path(__file__).resolve().parent / "prompts"
+_PROMPT_DIR = Path(__file__).with_name("prompts")
 
 
 def load_prompt(name: str) -> str:
     path = _PROMPT_DIR / name
-    if not path.is_file():
-        raise FileNotFoundError(f"Prompt not found: {path}")
+    if not path.exists():
+        raise FileNotFoundError(f"Prompt file not found: {path}")
     return path.read_text(encoding="utf-8")

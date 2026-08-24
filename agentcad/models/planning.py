@@ -1,26 +1,19 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from datetime import datetime, timezone
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class ClarificationQuestion(BaseModel):
     id: str
-    category: str
     question: str
-    explanation: Optional[str] = None
-    affected_parameters: list[str] = Field(default_factory=list)
-    choices: list[str] = Field(default_factory=list)
+    path: str = ""
+    explanation: str | None = None
 
 
 class ClarificationRecord(BaseModel):
-    iteration: int
-    questions: list[ClarificationQuestion] = Field(default_factory=list)
+    question_id: str
     answer: Any
-
-
-class PlanningFeedback(BaseModel):
-    source: str
-    message: str
-    details: dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

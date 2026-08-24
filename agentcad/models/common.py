@@ -41,7 +41,7 @@ class IssueKind(str, Enum):
 
 
 class QuantityParameter(BaseModel):
-    """A numeric engineering parameter with explicit provenance and units."""
+    """Numeric engineering parameter with explicit provenance and units."""
 
     name: str
     value: Optional[float] = None

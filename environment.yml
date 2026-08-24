@@ -1,0 +1,19 @@
+name: agentcad-v3
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - cadquery>=2.8
+  - gmsh
+  - calculix
+  - pip
+  - pip:
+      - pydantic>=2.12,<3
+      - langchain-core>=1.0,<2
+      - langgraph>=1.0,<2
+      - langchain-openai>=1.0,<2
+      - langchain-openrouter>=0.2.8,<0.3
+      - python-dotenv>=1.0,<2
+      - streamlit>=1.45,<2
+      - plotly>=6,<7
+      - pytest>=9,<10

@@ -1,60 +1,43 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from agentcad.models.common import QuantityParameter
 
 
-@dataclass(frozen=True)
-class UnitDefinition:
-    dimension: str
-    to_canonical: float
+_LENGTH_TO_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0}
+_FORCE_TO_N = {"n": 1.0, "kn": 1000.0}
+_STRESS_TO_MPA = {"pa": 1e-6, "kpa": 1e-3, "mpa": 1.0, "gpa": 1000.0, "n/mm²": 1.0, "n/mm2": 1.0}
+_DENSITY_TO_TONNE_MM3 = {"kg/m³": 1e-12, "kg/m3": 1e-12, "g/cm³": 1e-9, "g/cm3": 1e-9}
+_ACCEL_TO_MM_S2 = {"m/s²": 1000.0, "m/s2": 1000.0, "mm/s²": 1.0, "mm/s2": 1.0}
 
 
-# Canonical engineering units used for validation:
-# length mm, force N, stress MPa, density kg/m3, acceleration mm/s2, moment N*mm.
-UNITS: dict[str, UnitDefinition] = {
-    "1": UnitDefinition("dimensionless", 1.0),
-    "": UnitDefinition("dimensionless", 1.0),
-    "mm": UnitDefinition("length", 1.0),
-    "cm": UnitDefinition("length", 10.0),
-    "m": UnitDefinition("length", 1000.0),
-    "N": UnitDefinition("force", 1.0),
-    "kN": UnitDefinition("force", 1000.0),
-    "Pa": UnitDefinition("stress", 1e-6),
-    "kPa": UnitDefinition("stress", 1e-3),
-    "MPa": UnitDefinition("stress", 1.0),
-    "GPa": UnitDefinition("stress", 1000.0),
-    "N/mm^2": UnitDefinition("stress", 1.0),
-    "N/mm²": UnitDefinition("stress", 1.0),
-    "kg/m^3": UnitDefinition("density", 1.0),
-    "kg/m³": UnitDefinition("density", 1.0),
-    "g/cm^3": UnitDefinition("density", 1000.0),
-    "g/cm³": UnitDefinition("density", 1000.0),
-    "m/s^2": UnitDefinition("acceleration", 1000.0),
-    "m/s²": UnitDefinition("acceleration", 1000.0),
-    "mm/s^2": UnitDefinition("acceleration", 1.0),
-    "mm/s²": UnitDefinition("acceleration", 1.0),
-    "N*mm": UnitDefinition("moment", 1.0),
-    "N·mm": UnitDefinition("moment", 1.0),
-    "N*m": UnitDefinition("moment", 1000.0),
-    "N·m": UnitDefinition("moment", 1000.0),
-    "kN*m": UnitDefinition("moment", 1_000_000.0),
-    "kN·m": UnitDefinition("moment", 1_000_000.0),
-}
+def _norm(unit: str | None) -> str:
+    return (unit or "").strip().lower()
 
 
-def normalize_unit(unit: str | None) -> str | None:
-    if unit is None:
-        return None
-    return unit.strip()
+def convert_length_to_mm(q: QuantityParameter) -> float:
+    return _convert(q, _LENGTH_TO_MM, "length")
 
 
-def convert_to_canonical(value: float, unit: str, expected_dimension: str) -> float:
-    unit = normalize_unit(unit) or ""
-    definition = UNITS.get(unit)
-    if definition is None:
-        raise ValueError(f"Unsupported unit: {unit}")
-    if definition.dimension != expected_dimension:
-        raise ValueError(
-            f"Unit {unit!r} has dimension {definition.dimension}, expected {expected_dimension}."
-        )
-    return value * definition.to_canonical
+def convert_force_to_n(q: QuantityParameter) -> float:
+    return _convert(q, _FORCE_TO_N, "force")
+
+
+def convert_stress_to_mpa(q: QuantityParameter) -> float:
+    return _convert(q, _STRESS_TO_MPA, "stress/pressure")
+
+
+def convert_density_to_tonne_mm3(q: QuantityParameter) -> float:
+    return _convert(q, _DENSITY_TO_TONNE_MM3, "density")
+
+
+def convert_acceleration_to_mm_s2(q: QuantityParameter) -> float:
+    return _convert(q, _ACCEL_TO_MM_S2, "acceleration")
+
+
+def _convert(q: QuantityParameter, table: dict[str, float], dimension: str) -> float:
+    if q.value is None:
+        raise ValueError(f"{q.name} has no value")
+    unit = _norm(q.unit)
+    if unit not in table:
+        raise ValueError(f"Unsupported {dimension} unit '{q.unit}' for {q.name}")
+    return float(q.value) * table[unit]

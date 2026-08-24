@@ -2,60 +2,13 @@ from __future__ import annotations
 
 
 class ParameterExplainer:
-    """Deterministic concise explanations used when clarification is necessary."""
-
     _EXPLANATIONS = {
-        "material.density": (
-            "Густина потрібна для об'ємних навантажень, зокрема власної ваги, "
-            "і для динамічних задач. У статичній задачі без таких сил вона не "
-            "впливає безпосередньо на переміщення та напруження."
-        ),
-        "material.young_modulus": (
-            "Модуль Юнга визначає пружну жорсткість матеріалу; за однакового "
-            "навантаження менше E зазвичай дає більші переміщення."
-        ),
-        "material.poisson_ratio": (
-            "Коефіцієнт Пуассона пов'язує поперечні та поздовжні деформації і "
-            "впливає на тривимірний напружений стан."
-        ),
-        "boundary_conditions": (
-            "Граничні умови усувають переміщення твердого тіла і визначають спосіб "
-            "передавання навантаження в конструкції; недостатнє закріплення може "
-            "призвести до сингулярної системи."
-        ),
-        "loads.direction": (
-            "Напрямок сили або моменту визначає характер деформації та компоненти "
-            "напружень, тому його не можна однозначно відновити лише з величини."
-        ),
-        "mesh.dimension": (
-            "1D, 2D і 3D елементи відповідають різним математичним ідеалізаціям: "
-            "балковій, оболонковій та об'ємній."
-        ),
-        "mesh.element_order": (
-            "Елементи другого порядку краще апроксимують криволінійну геометрію і "
-            "поля переміщень, але мають більше вузлів і вищу обчислювальну вартість."
-        ),
-        "mesh.global_element_size": (
-            "Розмір елемента визначає дискретизацію: менші елементи зазвичай "
-            "підвищують точність у зонах градієнтів, але збільшують час і пам'ять."
-        ),
-        "mesh.shell_thickness": (
-            "Для оболонкової 2D-моделі товщина входить у жорсткість і не може бути "
-            "визначена лише з серединної поверхні."
-        ),
-        "mesh.beam_section": (
-            "Для 1D балкової моделі потрібні характеристики поперечного перерізу, "
-            "які визначають осьову, згинальну та крутильну жорсткість."
-        ),
-        "geometry.semantic_region": (
-            "Навантаження й закріплення повинні посилатися на однозначно визначену "
-            "геометричну область, а не на нестабільний номер FaceN."
-        ),
+        "young_modulus": "Young's modulus controls elastic stiffness; larger values reduce elastic deformation for the same load and geometry.",
+        "poisson_ratio": "Poisson's ratio controls lateral contraction/expansion under axial strain and affects the 3D elastic constitutive response.",
+        "density": "Density is required for body-force loads such as gravity and for inertia-based analyses.",
+        "global_element_size": "The global element size controls mesh resolution: smaller elements usually improve spatial resolution but increase cost.",
     }
 
-    def explain(self, affected_parameters: list[str]) -> str | None:
-        parts: list[str] = []
-        for name in affected_parameters:
-            if name in self._EXPLANATIONS and self._EXPLANATIONS[name] not in parts:
-                parts.append(self._EXPLANATIONS[name])
-        return " ".join(parts) or None
+    def explain(self, path: str) -> str | None:
+        key = path.split(".")[-1]
+        return self._EXPLANATIONS.get(key)

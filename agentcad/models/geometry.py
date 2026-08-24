@@ -17,18 +17,18 @@ class RegionKind(str, Enum):
     EDGE_SET = "edge_set"
 
 
-class SemanticRegion(BaseModel):
-    name: str = Field(description="Stable semantic name, never a transient Face1-style id.")
-    kind: RegionKind
-    description: str
-
-
 class GeometryFeature(BaseModel):
     id: str
     feature_type: str
     description: str
     parameters: dict[str, Any] = Field(default_factory=dict)
     semantic_regions: list[str] = Field(default_factory=list)
+
+
+class SemanticRegion(BaseModel):
+    name: str = Field(description="Stable semantic name, never a transient Face1-style id.")
+    kind: RegionKind
+    description: str
 
 
 class GeometrySpec(BaseModel):

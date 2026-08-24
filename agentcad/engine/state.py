@@ -1,42 +1,39 @@
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Any, NotRequired, TypedDict
+from typing import Annotated, Any, TypedDict
 
 
-class AgentCADState(TypedDict):
-    # User input and configuration
-    original_request: str
+class AgentCADState(TypedDict, total=False):
+    request: str
+    thread_id: str
     perform_structural_analysis: bool
     task_intent: str
-    output_dir: str
+    clarification_round: int
     max_planning_iterations: int
-    max_code_attempts: int
+    clarifications: list[dict[str, Any]]
 
-    # Unified planning loop
-    geometry_spec: NotRequired[dict[str, Any]]
-    structural_spec: NotRequired[dict[str, Any]]
-    validation_report: NotRequired[dict[str, Any]]
-    pending_questions: NotRequired[list[dict[str, Any]]]
-    clarifications: Annotated[list[dict[str, Any]], operator.add]
-    planning_iteration: int
-    failure_feedback: NotRequired[dict[str, Any]]
+    geometry_spec: dict[str, Any]
+    structural_analysis: dict[str, Any] | None
+    validation_report: dict[str, Any]
+    unified_model: dict[str, Any]
+    clarification_questions: list[dict[str, Any]]
 
-    # Frozen planning contract
-    unified_specification: NotRequired[dict[str, Any]]
+    feature_plan: dict[str, Any]
+    feature_plan_attempts: int
+    feature_plan_validation: dict[str, Any]
+    geometry_inspection: dict[str, Any]
 
-    # Code generation / execution
-    code_attempt: int
-    generated_code: NotRequired[str]
-    code_summary: NotRequired[str]
-    execution_result: NotRequired[dict[str, Any]]
+    artifacts: dict[str, Any]
+    mesh_result: dict[str, Any]
+    solver_result: dict[str, Any]
+    simulation_summary: dict[str, Any]
 
-    # Inspection
-    stl_inspection: NotRequired[dict[str, Any]]
-    fem_inspection: NotRequired[dict[str, Any]]
-    failure_class: NotRequired[str]
+    failure: dict[str, Any] | None
+    output_dir: str
+    status: str
 
-    # Final state
-    final_success: bool
-    final_reason: NotRequired[str]
+    # Reducers preserve the complete protocol instead of overwriting the
+    # previous node's messages on each LangGraph transition.
     events: Annotated[list[str], operator.add]
+    diagnostics: Annotated[list[dict[str, Any]], operator.add]

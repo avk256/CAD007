@@ -12,8 +12,8 @@ from .simulation import StructuralAnalysisSpec
 from .validation import ValidationReport
 
 
-class UnifiedModelSpecification(BaseModel):
-    version: str = "2.0"
+class UnifiedEngineeringModel(BaseModel):
+    version: str = "3.0"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     original_request: str
     task_intent: TaskIntent
@@ -22,3 +22,6 @@ class UnifiedModelSpecification(BaseModel):
     clarifications: list[ClarificationRecord] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     validation_report: ValidationReport
+
+
+UnifiedModelSpecification = UnifiedEngineeringModel

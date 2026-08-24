@@ -1,0 +1,894 @@
+{
+  "$defs": {
+    "AnalysisType": {
+      "enum": [
+        "linear_static"
+      ],
+      "title": "AnalysisType",
+      "type": "string"
+    },
+    "BoundaryConditionSpec": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "bc_type": {
+          "$ref": "#/$defs/BoundaryConditionType"
+        },
+        "target_region": {
+          "title": "Target Region",
+          "type": "string"
+        },
+        "constrained_dofs": {
+          "items": {
+            "$ref": "#/$defs/DegreeOfFreedom"
+          },
+          "title": "Constrained Dofs",
+          "type": "array"
+        },
+        "values": {
+          "additionalProperties": {
+            "$ref": "#/$defs/QuantityParameter"
+          },
+          "title": "Values",
+          "type": "object"
+        },
+        "coordinate_system": {
+          "default": "global",
+          "title": "Coordinate System",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "bc_type",
+        "target_region"
+      ],
+      "title": "BoundaryConditionSpec",
+      "type": "object"
+    },
+    "BoundaryConditionType": {
+      "enum": [
+        "fixed",
+        "prescribed_displacement"
+      ],
+      "title": "BoundaryConditionType",
+      "type": "string"
+    },
+    "ClarificationRecord": {
+      "properties": {
+        "question_id": {
+          "title": "Question Id",
+          "type": "string"
+        },
+        "answer": {
+          "title": "Answer"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question_id",
+        "answer"
+      ],
+      "title": "ClarificationRecord",
+      "type": "object"
+    },
+    "DegreeOfFreedom": {
+      "enum": [
+        "Ux",
+        "Uy",
+        "Uz",
+        "Rx",
+        "Ry",
+        "Rz"
+      ],
+      "title": "DegreeOfFreedom",
+      "type": "string"
+    },
+    "Dimensions3D": {
+      "properties": {
+        "x": {
+          "exclusiveMinimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "exclusiveMinimum": 0,
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "exclusiveMinimum": 0,
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "title": "Dimensions3D",
+      "type": "object"
+    },
+    "ElementFamily": {
+      "enum": [
+        "truss",
+        "beam",
+        "triangle",
+        "quadrilateral",
+        "tetrahedron",
+        "hexahedron"
+      ],
+      "title": "ElementFamily",
+      "type": "string"
+    },
+    "ElementOrder": {
+      "enum": [
+        "first",
+        "second"
+      ],
+      "title": "ElementOrder",
+      "type": "string"
+    },
+    "GeometryFeature": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "feature_type": {
+          "title": "Feature Type",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "semantic_regions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Semantic Regions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "feature_type",
+        "description"
+      ],
+      "title": "GeometryFeature",
+      "type": "object"
+    },
+    "GeometrySpec": {
+      "properties": {
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "units": {
+          "default": "mm",
+          "title": "Units",
+          "type": "string"
+        },
+        "coordinate_system": {
+          "default": "Right-handed Cartesian XYZ.",
+          "title": "Coordinate System",
+          "type": "string"
+        },
+        "overall_dimensions_mm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Dimensions3D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "features": {
+          "items": {
+            "$ref": "#/$defs/GeometryFeature"
+          },
+          "title": "Features",
+          "type": "array"
+        },
+        "operations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Operations",
+          "type": "array"
+        },
+        "semantic_regions": {
+          "items": {
+            "$ref": "#/$defs/SemanticRegion"
+          },
+          "title": "Semantic Regions",
+          "type": "array"
+        },
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "unresolved_issues": {
+          "items": {
+            "$ref": "#/$defs/PlannerIssue"
+          },
+          "title": "Unresolved Issues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "title": "GeometrySpec",
+      "type": "object"
+    },
+    "IssueKind": {
+      "enum": [
+        "missing",
+        "invalid",
+        "conflict",
+        "unsupported",
+        "warning"
+      ],
+      "title": "IssueKind",
+      "type": "string"
+    },
+    "IssueSeverity": {
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "title": "IssueSeverity",
+      "type": "string"
+    },
+    "LoadSpec": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "load_type": {
+          "$ref": "#/$defs/LoadType"
+        },
+        "magnitude": {
+          "$ref": "#/$defs/QuantityParameter"
+        },
+        "target_region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Region"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Vector3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "distribution": {
+          "default": "uniform",
+          "title": "Distribution",
+          "type": "string"
+        },
+        "coordinate_system": {
+          "default": "global",
+          "title": "Coordinate System",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "load_type",
+        "magnitude"
+      ],
+      "title": "LoadSpec",
+      "type": "object"
+    },
+    "LoadType": {
+      "enum": [
+        "force",
+        "pressure",
+        "moment",
+        "gravity"
+      ],
+      "title": "LoadType",
+      "type": "string"
+    },
+    "LocalRefinement": {
+      "properties": {
+        "target_region": {
+          "title": "Target Region",
+          "type": "string"
+        },
+        "element_size": {
+          "$ref": "#/$defs/QuantityParameter"
+        }
+      },
+      "required": [
+        "target_region",
+        "element_size"
+      ],
+      "title": "LocalRefinement",
+      "type": "object"
+    },
+    "MaterialModel": {
+      "enum": [
+        "linear_isotropic"
+      ],
+      "title": "MaterialModel",
+      "type": "string"
+    },
+    "MaterialSpec": {
+      "properties": {
+        "name": {
+          "default": "unspecified material",
+          "title": "Name",
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/MaterialModel",
+          "default": "linear_isotropic"
+        },
+        "density": {
+          "$ref": "#/$defs/QuantityParameter"
+        },
+        "young_modulus": {
+          "$ref": "#/$defs/QuantityParameter"
+        },
+        "poisson_ratio": {
+          "$ref": "#/$defs/QuantityParameter"
+        },
+        "unresolved_issues": {
+          "items": {
+            "$ref": "#/$defs/PlannerIssue"
+          },
+          "title": "Unresolved Issues",
+          "type": "array"
+        }
+      },
+      "title": "MaterialSpec",
+      "type": "object"
+    },
+    "MeshSizeMode": {
+      "enum": [
+        "explicit",
+        "auto",
+        "unset"
+      ],
+      "title": "MeshSizeMode",
+      "type": "string"
+    },
+    "MeshSpec": {
+      "properties": {
+        "dimension": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelDimension"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "idealization": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelIdealization"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "element_family": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ElementFamily"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "element_order": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ElementOrder"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "global_size_mode": {
+          "$ref": "#/$defs/MeshSizeMode",
+          "default": "unset"
+        },
+        "global_element_size": {
+          "$ref": "#/$defs/QuantityParameter"
+        },
+        "local_refinements": {
+          "items": {
+            "$ref": "#/$defs/LocalRefinement"
+          },
+          "title": "Local Refinements",
+          "type": "array"
+        },
+        "shell_thickness": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuantityParameter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "beam_section_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beam Section Description"
+        }
+      },
+      "title": "MeshSpec",
+      "type": "object"
+    },
+    "ModelDimension": {
+      "enum": [
+        "1D",
+        "2D",
+        "3D"
+      ],
+      "title": "ModelDimension",
+      "type": "string"
+    },
+    "ModelIdealization": {
+      "enum": [
+        "beam_1d",
+        "shell_2d",
+        "solid_3d"
+      ],
+      "title": "ModelIdealization",
+      "type": "string"
+    },
+    "ParameterSource": {
+      "enum": [
+        "user_explicit",
+        "inferred",
+        "default",
+        "undefined"
+      ],
+      "title": "ParameterSource",
+      "type": "string"
+    },
+    "PlannerIssue": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/IssueKind",
+          "default": "invalid"
+        },
+        "affected_parameters": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Parameters",
+          "type": "array"
+        },
+        "suggested_question": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Question"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "PlannerIssue",
+      "type": "object"
+    },
+    "QuantityParameter": {
+      "description": "Numeric engineering parameter with explicit provenance and units.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "source": {
+          "$ref": "#/$defs/ParameterSource",
+          "default": "undefined"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "QuantityParameter",
+      "type": "object"
+    },
+    "RegionKind": {
+      "enum": [
+        "solid",
+        "face",
+        "edge",
+        "vertex",
+        "surface_set",
+        "edge_set"
+      ],
+      "title": "RegionKind",
+      "type": "string"
+    },
+    "SemanticRegion": {
+      "properties": {
+        "name": {
+          "description": "Stable semantic name, never a transient Face1-style id.",
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/RegionKind"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "description"
+      ],
+      "title": "SemanticRegion",
+      "type": "object"
+    },
+    "SolverType": {
+      "enum": [
+        "calculix"
+      ],
+      "title": "SolverType",
+      "type": "string"
+    },
+    "StructuralAnalysisSpec": {
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "analysis_type": {
+          "$ref": "#/$defs/AnalysisType",
+          "default": "linear_static"
+        },
+        "material": {
+          "$ref": "#/$defs/MaterialSpec"
+        },
+        "boundary_conditions": {
+          "items": {
+            "$ref": "#/$defs/BoundaryConditionSpec"
+          },
+          "title": "Boundary Conditions",
+          "type": "array"
+        },
+        "loads": {
+          "items": {
+            "$ref": "#/$defs/LoadSpec"
+          },
+          "title": "Loads",
+          "type": "array"
+        },
+        "mesh": {
+          "$ref": "#/$defs/MeshSpec"
+        },
+        "solver": {
+          "$ref": "#/$defs/SolverType",
+          "default": "calculix"
+        },
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "unresolved_issues": {
+          "items": {
+            "$ref": "#/$defs/PlannerIssue"
+          },
+          "title": "Unresolved Issues",
+          "type": "array"
+        }
+      },
+      "title": "StructuralAnalysisSpec",
+      "type": "object"
+    },
+    "TaskIntent": {
+      "enum": [
+        "geometry_only",
+        "geometry_and_structural_analysis"
+      ],
+      "title": "TaskIntent",
+      "type": "string"
+    },
+    "ValidationIssue": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/IssueSeverity",
+          "default": "error"
+        },
+        "kind": {
+          "$ref": "#/$defs/IssueKind",
+          "default": "invalid"
+        },
+        "path": {
+          "default": "",
+          "title": "Path",
+          "type": "string"
+        },
+        "suggested_question": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Question"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ValidationIssue",
+      "type": "object"
+    },
+    "ValidationReport": {
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/ValidationStatus"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/ValidationIssue"
+          },
+          "title": "Issues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ValidationReport",
+      "type": "object"
+    },
+    "ValidationStatus": {
+      "enum": [
+        "valid",
+        "valid_with_warnings",
+        "needs_clarification",
+        "conflict",
+        "unsupported"
+      ],
+      "title": "ValidationStatus",
+      "type": "string"
+    },
+    "Vector3": {
+      "properties": {
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "default": 0.0,
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "title": "Vector3",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "version": {
+      "default": "3.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "original_request": {
+      "title": "Original Request",
+      "type": "string"
+    },
+    "task_intent": {
+      "$ref": "#/$defs/TaskIntent"
+    },
+    "geometry": {
+      "$ref": "#/$defs/GeometrySpec"
+    },
+    "structural_analysis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StructuralAnalysisSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "clarifications": {
+      "items": {
+        "$ref": "#/$defs/ClarificationRecord"
+      },
+      "title": "Clarifications",
+      "type": "array"
+    },
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "validation_report": {
+      "$ref": "#/$defs/ValidationReport"
+    }
+  },
+  "required": [
+    "original_request",
+    "task_intent",
+    "geometry",
+    "validation_report"
+  ],
+  "title": "UnifiedEngineeringModel",
+  "type": "object"
+}

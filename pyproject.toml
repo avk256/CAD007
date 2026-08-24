@@ -1,28 +1,37 @@
 [build-system]
-requires = ["setuptools>=70", "wheel"]
+requires = ["setuptools>=75", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentcad-v2"
-version = "2.0.0"
-description = "LangGraph-based natural-language CAD/FEM agent for FreeCAD"
+name = "agentcad-v3"
+version = "3.0.0a2"
+description = "Verifier-guided agentic CAD/CAE using typed engineering models, CadQuery, Gmsh and CalculiX"
 requires-python = ">=3.11"
 dependencies = [
-  "langchain>=1.0",
-  "langchain-openai>=1.0",
-  "langchain-openrouter>=0.1",
-  "langgraph>=1.2",
-  "python-dotenv>=1.0",
-  "pydantic>=2.8",
-  "numpy>=2.0",
-  "numpy-stl>=3.1",
-  "plotly>=6.0",
-  "streamlit>=1.45",
+  "cadquery>=2.8,<3",
+  "pydantic>=2.12,<3",
+  "langchain-core>=1.0,<2",
+  "langgraph>=1.0,<2",
+  "langchain-openai>=1.0,<2",
+  "langchain-openrouter>=0.2.8,<0.3",
+  "python-dotenv>=1.0,<2",
+  "gmsh>=4.13,<5",
+  "streamlit>=1.45,<2",
+  "plotly>=6,<7"
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=9,<10"]
+
+[project.scripts]
+agentcad = "agentcad.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["agentcad*"]
 
+[tool.setuptools.package-data]
+agentcad = ["llm/prompts/*.txt"]
+
 [tool.pytest.ini_options]
-testpaths = ["tests"]
 pythonpath = ["."]
+testpaths = ["tests"]

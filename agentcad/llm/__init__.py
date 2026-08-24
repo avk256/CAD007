@@ -1,2 +1,3 @@
-from .model_factory import ModelFactory
-from .prompt_loader import load_prompt
+from .model_factory import ModelFactory, create_chat_model
+
+__all__ = ["ModelFactory", "create_chat_model"]

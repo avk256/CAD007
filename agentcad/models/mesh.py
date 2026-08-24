@@ -51,9 +51,7 @@ class MeshSpec(BaseModel):
     element_family: Optional[ElementFamily] = None
     element_order: Optional[ElementOrder] = None
     global_size_mode: MeshSizeMode = MeshSizeMode.UNSET
-    global_element_size: QuantityParameter = Field(
-        default_factory=lambda: QuantityParameter(name="global_element_size", unit="mm", required=False)
-    )
+    global_element_size: QuantityParameter = Field(default_factory=lambda: QuantityParameter(name="global_element_size", unit="mm", required=False))
     local_refinements: list[LocalRefinement] = Field(default_factory=list)
     shell_thickness: Optional[QuantityParameter] = None
     beam_section_description: Optional[str] = None
